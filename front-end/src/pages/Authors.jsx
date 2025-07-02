@@ -194,18 +194,28 @@ function Authors() {
 }
 
 function AuthorCard({ author }) {
+  
+  // const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(author.name)}&background=random`;
+  const randomId = author.id % 100; // keep ID within 0-99
+  const gender = randomId % 2 === 0 ? 'men' : 'women';
+  const avatarUrl = `https://randomuser.me/api/portraits/${gender}/${randomId}.jpg`;
+
+
   return (
     <div className="col">
       <div className="card h-100 shadow-sm">
         <div className="card-body">
           <div className="d-flex align-items-center mb-3">
             <div className="flex-shrink-0">
-              <div className="avatar avatar-md bg-light rounded-circle d-flex align-items-center justify-content-center">
-                <User className="text-primary" size={24} />
-              </div>
+              <img
+                src={avatarUrl}
+                alt={author.name}
+                className="rounded-circle"
+                style={{ width: '48px', height: '48px', objectFit: 'cover' }}
+              />
             </div>
             <div className="flex-grow-1 ms-3">
-              <h5 className="card-title">{author.name}</h5>
+              <h5 className="card-title mb-1">{author.name}</h5>
               <div className="d-flex align-items-center text-muted">
                 <BookOpen className="me-2" size={16} />
                 <span>{author.book_count} books</span>
@@ -232,5 +242,6 @@ function AuthorCard({ author }) {
     </div>
   );
 }
+
 
 export default Authors;

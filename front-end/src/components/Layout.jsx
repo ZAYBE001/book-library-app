@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, Home, Plus, Users, Tag } from 'lucide-react';
+import { BookOpen, Home, Plus, Users, Tag, UserPlus } from 'lucide-react';
 
 function Layout({ children }) {
   const location = useLocation();
@@ -28,7 +28,8 @@ function Layout({ children }) {
                 { path: "/", icon: Home, label: "Home" },
                 { path: "/add-book", icon: Plus, label: "Add Book" },
                 { path: "/authors", icon: Users, label: "Authors" },
-                { path: "/categories", icon: Tag, label: "Categories" }
+                { path: "/categories", icon: Tag, label: "Categories" },
+                { path: "/Login", icon: UserPlus, label: "logout" }
               ].map((item) => (
                 <li key={item.path} className="nav-item">
                   <Link

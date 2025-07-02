@@ -6,40 +6,17 @@ import { Plus, Minus, Save, ArrowLeft } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const validationSchema = Yup.object({
-  title: Yup.string()
-    .required('Title is required')
-    .min(1, 'Title must be at least 1 character')
-    .max(200, 'Title must be less than 200 characters'),
-  isbn: Yup.string()
-    .matches(/^[\d-]{10,17}$/, 'ISBN must be 10-17 characters and contain only digits and hyphens')
-    .nullable()
-    .notRequired(),
-  publication_year: Yup.number()
-    .typeError('Publication year must be a number')
-    .min(1000, 'Publication year must be at least 1000')
-    .max(new Date().getFullYear(), `Publication year cannot be in the future`)
-    .nullable()
-    .notRequired(),
-  pages: Yup.number()
-    .typeError('Pages must be a number')
-    .min(1, 'Pages must be at least 1')
-    .max(10000, 'Pages must be less than 10000')
-    .nullable()
-    .notRequired(),
-  description: Yup.string()
-    .max(1000, 'Description must be less than 1000 characters')
-    .notRequired(),
-  author_id: Yup.number()
-    .required('Author is required')
-    .typeError('Author is required'),
+  title: Yup.string().required('Title is required').min(1).max(200),
+  isbn: Yup.string().matches(/^[\d-]{10,17}$/, 'Invalid ISBN').nullable(),
+  publication_year: Yup.number().typeError('Must be a number').min(1000).max(new Date().getFullYear()).nullable(),
+  pages: Yup.number().typeError('Must be a number').min(1).max(10000).nullable(),
+  description: Yup.string().max(1000),
+  author_id: Yup.number().required('Author is required').typeError('Author is required'),
   categories: Yup.array().of(
     Yup.object({
       category_id: Yup.number().required('Category is required'),
-      priority: Yup.number()
-        .min(1, 'Priority must be between 1 and 5')
-        .max(5, 'Priority must be between 1 and 5')
-        .required('Priority is required'),
-      notes: Yup.string().max(200, 'Notes must be less than 200 characters')
+      priority: Yup.number().min(1).max(5).required('Priority is required'),
+      notes: Yup.string().max(200)
     })
   )
 });
@@ -49,6 +26,7 @@ function AddBook() {
   const [authors, setAuthors] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -60,27 +38,37 @@ function AddBook() {
         fetch('/api/authors'),
         fetch('/api/categories')
       ]);
-      
-      const authorsData = await authorsResponse.json();
-      const categoriesData = await categoriesResponse.json();
-      
-      setAuthors(authorsData);
-      setCategories(categoriesData);
+      setAuthors(await authorsResponse.json());
+      setCategories(await categoriesResponse.json());
     } catch {
-      console.error('Error fetching data');
+      console.error('Error fetching authors/categories');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
+    const formData = new FormData();
+    formData.append('title', values.title);
+    formData.append('isbn', values.isbn || '');
+    formData.append('publication_year', values.publication_year || '');
+    formData.append('pages', values.pages || '');
+    formData.append('description', values.description || '');
+    formData.append('author_id', values.author_id);
+    formData.append('categories', JSON.stringify(values.categories));
+    if (values.cover_image) {
+      formData.append('cover_image', values.cover_image);
+    }
+
+    const token = localStorage.getItem('token');
+
     try {
       const response = await fetch('/api/books', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(values),
+        body: formData,
       });
 
       if (response.ok) {
@@ -102,12 +90,8 @@ function AddBook() {
     <div className="container mt-5">
       <div className="row mb-4">
         <div className="col">
-          <button
-            onClick={() => navigate('/')}
-            className="btn btn-link"
-          >
-            <ArrowLeft className="me-2" />
-            Back to Books
+          <button onClick={() => navigate('/')} className="btn btn-link">
+            <ArrowLeft className="me-2" /> Back to Books
           </button>
         </div>
         <div className="col text-center">
@@ -126,13 +110,14 @@ function AddBook() {
               pages: '',
               description: '',
               author_id: '',
-              categories: []
+              categories: [],
+              cover_image: null
             }}
             validationSchema={validationSchema}
             onSubmit={handleSubmit}
           >
-            {({ values, isSubmitting, errors, touched }) => (
-              <Form>
+            {({ values, isSubmitting, errors, touched, setFieldValue }) => (
+              <Form encType="multipart/form-data">
                 {errors.general && (
                   <div className="alert alert-danger" role="alert">
                     {errors.general}
@@ -142,27 +127,16 @@ function AddBook() {
                 <div className="row g-3">
                   <div className="col-md-6">
                     <label htmlFor="title" className="form-label">Title *</label>
-                    <Field
-                      name="title"
-                      type="text"
-                      className={`form-control ${errors.title && touched.title ? 'is-invalid' : ''}`}
-                      placeholder="Enter book title"
-                    />
+                    <Field name="title" type="text" className={`form-control ${touched.title && errors.title ? 'is-invalid' : ''}`} />
                     <ErrorMessage name="title" component="div" className="invalid-feedback" />
                   </div>
 
                   <div className="col-md-6">
                     <label htmlFor="author_id" className="form-label">Author *</label>
-                    <Field
-                      as="select"
-                      name="author_id"
-                      className={`form-select ${errors.author_id && touched.author_id ? 'is-invalid' : ''}`}
-                    >
-                      <option value="">Select an author</option>
-                      {authors.map((author) => (
-                        <option key={author.id} value={author.id}>
-                          {author.name}
-                        </option>
+                    <Field as="select" name="author_id" className={`form-select ${touched.author_id && errors.author_id ? 'is-invalid' : ''}`}>
+                      <option value="">Select author</option>
+                      {authors.map(author => (
+                        <option key={author.id} value={author.id}>{author.name}</option>
                       ))}
                     </Field>
                     <ErrorMessage name="author_id" component="div" className="invalid-feedback" />
@@ -170,48 +144,41 @@ function AddBook() {
 
                   <div className="col-md-6">
                     <label htmlFor="isbn" className="form-label">ISBN</label>
-                    <Field
-                      name="isbn"
-                      type="text"
-                      className={`form-control ${errors.isbn && touched.isbn ? 'is-invalid' : ''}`}
-                      placeholder="978-1-234-56789-7"
-                    />
-                    <ErrorMessage name="isbn" component="div" className="invalid-feedback" />
+                    <Field name="isbn" type="text" className="form-control" placeholder="978-1-234..." />
                   </div>
 
                   <div className="col-md-6">
                     <label htmlFor="publication_year" className="form-label">Publication Year</label>
-                    <Field
-                      name="publication_year"
-                      type="number"
-                      className={`form-control ${errors.publication_year && touched.publication_year ? 'is-invalid' : ''}`}
-                      placeholder="2023"
-                    />
-                    <ErrorMessage name="publication_year" component="div" className="invalid-feedback" />
+                    <Field name="publication_year" type="number" className="form-control" />
                   </div>
 
                   <div className="col-md-6">
                     <label htmlFor="pages" className="form-label">Pages</label>
-                    <Field
-                      name="pages"
-                      type="number"
-                      className={`form-control ${errors.pages && touched.pages ? 'is-invalid' : ''}`}
-                      placeholder="300"
+                    <Field name="pages" type="number" className="form-control" />
+                  </div>
+
+                  <div className="col-md-6">
+                    <label htmlFor="cover_image" className="form-label">Cover Image</label>
+                    <input
+                      type="file"
+                      className="form-control"
+                      accept="image/*"
+                      onChange={(event) => {
+                        setFieldValue('cover_image', event.currentTarget.files[0]);
+                        setPreview(URL.createObjectURL(event.currentTarget.files[0]));
+                      }}
                     />
-                    <ErrorMessage name="pages" component="div" className="invalid-feedback" />
+                    {preview && (
+                      <div className="mt-2">
+                        <img src={preview} alt="Preview" className="img-thumbnail" width="150" />
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="mb-3">
+                <div className="mb-3 mt-3">
                   <label htmlFor="description" className="form-label">Description</label>
-                  <Field
-                    as="textarea"
-                    name="description"
-                    rows="4"
-                    className={`form-control ${errors.description && touched.description ? 'is-invalid' : ''}`}
-                    placeholder="Brief description of the book"
-                  />
-                  <ErrorMessage name="description" component="div" className="invalid-feedback" />
+                  <Field as="textarea" name="description" className="form-control" rows="4" />
                 </div>
 
                 <div className="mb-3">
@@ -219,71 +186,33 @@ function AddBook() {
                   <FieldArray name="categories">
                     {({ push, remove }) => (
                       <div>
-                        {values.categories.map((category, index) => (
+                        {values.categories.map((_, index) => (
                           <div key={index} className="mb-3">
-                            <div className="row g-3">
-                              <div className="col-md-6">
-                                <label htmlFor={`categories.${index}.category_id`} className="form-label">Category</label>
-                                <Field
-                                  as="select"
-                                  name={`categories.${index}.category_id`}
-                                  className="form-select"
-                                >
+                            <div className="row g-2">
+                              <div className="col-md-5">
+                                <Field as="select" name={`categories.${index}.category_id`} className="form-select">
                                   <option value="">Select category</option>
-                                  {categories.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>
-                                      {cat.name}
-                                    </option>
+                                  {categories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
                                   ))}
                                 </Field>
-                                <ErrorMessage name={`categories.${index}.category_id`} component="div" className="invalid-feedback" />
                               </div>
-
                               <div className="col-md-3">
-                                <label htmlFor={`categories.${index}.priority`} className="form-label">Priority (1-5)</label>
-                                <Field
-                                  name={`categories.${index}.priority`}
-                                  type="number"
-                                  min="1"
-                                  max="5"
-                                  className="form-control"
-                                  placeholder="1"
-                                />
-                                <ErrorMessage name={`categories.${index}.priority`} component="div" className="invalid-feedback" />
+                                <Field name={`categories.${index}.priority`} type="number" className="form-control" placeholder="Priority" />
                               </div>
-
                               <div className="col-md-3">
-                                <button
-                                  type="button"
-                                  onClick={() => remove(index)}
-                                  className="btn btn-danger btn-sm"
-                                >
-                                  <Minus className="me-2" />
-                                  Remove
+                                <Field name={`categories.${index}.notes`} type="text" className="form-control" placeholder="Notes" />
+                              </div>
+                              <div className="col-md-1 d-grid">
+                                <button type="button" onClick={() => remove(index)} className="btn btn-danger">
+                                  <Minus size={16} />
                                 </button>
                               </div>
                             </div>
-
-                            <div className="mb-3">
-                              <label htmlFor={`categories.${index}.notes`} className="form-label">Notes</label>
-                              <Field
-                                name={`categories.${index}.notes`}
-                                type="text"
-                                className="form-control"
-                                placeholder="Optional notes"
-                              />
-                              <ErrorMessage name={`categories.${index}.notes`} component="div" className="invalid-feedback" />
-                            </div>
                           </div>
                         ))}
-
-                        <button
-                          type="button"
-                          onClick={() => push({ category_id: '', priority: 1, notes: '' })}
-                          className="btn btn-primary btn-sm"
-                        >
-                          <Plus className="me-2" />
-                          Add Category
+                        <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => push({ category_id: '', priority: 1, notes: '' })}>
+                          <Plus className="me-1" size={16} /> Add Category
                         </button>
                       </div>
                     )}
@@ -291,19 +220,9 @@ function AddBook() {
                 </div>
 
                 <div className="text-end">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/')}
-                    className="btn btn-secondary me-2"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="btn btn-primary"
-                  >
-                    {isSubmitting ? 'Creating...' : 'Create Book'}
+                  <button type="button" onClick={() => navigate('/')} className="btn btn-secondary me-2">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="btn btn-primary">
+                    {isSubmitting ? 'Creating...' : 'Create Book'} <Save className="ms-1" size={16} />
                   </button>
                 </div>
               </Form>
